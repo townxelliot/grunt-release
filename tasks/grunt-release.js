@@ -13,11 +13,12 @@ var Q = require('q');
 
 module.exports = function(grunt){
   grunt.registerTask('release', 'bump version, git tag, git push, npm publish', function(type){
-    
+
     //defaults
     var options = this.options({
       bump: true,
-      file: grunt.config('pkgFile') || 'package.json',
+      file: grunt.config('file') || 'package.json',
+      files: [],
       add: true,
       commit: true,
       tag: true,
@@ -26,7 +27,14 @@ module.exports = function(grunt){
       npm : true
     });
 
-    var config = setup(options.file, type);
+    if (options.files.length > 0) {
+      options.file = null;
+    }
+    else if (options.file) {
+      options.files = [options.file];
+    }
+
+    var config = setup(options.files, type);
     var templateOptions = {
       data: {
         version: config.newVersion
@@ -58,13 +66,20 @@ module.exports = function(grunt){
       .finally(done);
 
 
-    function setup(file, type){
-      var pkg = grunt.file.readJSON(file);
-      var newVersion = pkg.version;
+    function setup(files, type){
+      var version = grunt.file.readJSON(files[0]).version;
+      var newVersion = version;
+
       if (options.bump) {
-        newVersion = semver.inc(pkg.version, type || 'patch');
+        newVersion = semver.inc(version, type || 'patch');
       }
-      return {file: file, pkg: pkg, newVersion: newVersion};
+
+      return {
+        files: files,
+        version: version,
+        newVersion: newVersion,
+        filesChanged: files.join(', ')
+      };
     }
 
     function getNpmTag(){
@@ -88,7 +103,7 @@ module.exports = function(grunt){
       else {
         var success = shell.exec(cmd, {silent:true}).code === 0;
 
-        if (success){ 
+        if (success){
           grunt.log.ok(msg || cmd);
           deferred.resolve();
         }
@@ -101,11 +116,11 @@ module.exports = function(grunt){
     }
 
     function add(){
-      return run('git add ' + config.file, ' staged ' + config.file);
+      return run('git add ' + config.filesChanged, ' staged ' + config.filesChanged);
     }
 
     function commit(){
-      return run('git commit '+ config.file +' -m "'+ commitMessage +'"', 'committed ' + config.file);
+      return run('git commit '+ config.filesChanged +' -m "'+ commitMessage +'"', 'committed ' + config.filesChanged);
     }
 
     function tag(){
@@ -124,7 +139,7 @@ module.exports = function(grunt){
       var cmd = 'npm publish';
       var msg = 'published version '+ config.newVersion +' to npm';
       var npmtag = getNpmTag();
-      if (npmtag){ 
+      if (npmtag){
         cmd += ' --tag ' + npmtag;
         msg += ' with a tag of "' + npmtag + '"';
       }
@@ -135,15 +150,33 @@ module.exports = function(grunt){
 
     function bump(){
       return Q.fcall(function () {
-        config.pkg.version = config.newVersion;
-        grunt.file.write(config.file, JSON.stringify(config.pkg, null, '  ') + '\n');
-        grunt.log.ok('bumped version to ' + config.newVersion);
+        var file;
+        var fileConfig;
+        var fileConfigStr;
+
+        if (config.version !== config.newVersion) {
+          for (var i = 0; i < config.files.length; i++) {
+            file = config.files[i];
+
+            if (grunt.file.exists(file)) {
+              fileConfig = grunt.file.readJSON(file);
+              fileConfig.version = config.newVersion;
+              fileConfigStr = JSON.stringify(fileConfig, null, '  ') + '\n';
+              grunt.file.write(file, fileConfigStr);
+            }
+          }
+          grunt.log.ok('bumped version to ' + config.newVersion + ' in ' +
+                       config.filesChanged);
+        }
+        else {
+          grunt.log.warn('not bumping version, as it didn\'t change');
+        }
       });
     }
 
     function githubRelease(){
       var deferred = Q.defer();
-      if (nowrite){ 
+      if (nowrite){
         success();
         return;
       }
@@ -157,7 +190,7 @@ module.exports = function(grunt){
         .end(function(res){
           if (res.statusCode === 201){
             success();
-          } 
+          }
           else {
             deferred.reject('Error creating github release. Response: ' + res.text);
           }
