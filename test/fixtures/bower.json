@@ -1,0 +1,20 @@
+{
+  "name": "test",
+  "main": "test.js",
+  "version": "0.0.1",
+  "description": "test fixture",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "examples",
+    "Gruntfile.js",
+    "package.json",
+    "README.md"
+  ],
+  "devDependencies": {
+    "requirejs": "~2.1.11"
+  }
+}
