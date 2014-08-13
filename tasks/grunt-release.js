@@ -78,7 +78,7 @@ module.exports = function(grunt){
         files: files,
         version: version,
         newVersion: newVersion,
-        filesChanged: files.join(', ')
+        filesChanged: files.join(' ')
       };
     }
 
